@@ -3,7 +3,6 @@ uvicorn
 yfinance
 matplotlib
 pandas
-finnhub-python
 plotly
 seaborn
 pydantic
