@@ -1,8 +1,9 @@
 import yfinance as yf
 import pandas as pd
 import seaborn as sns
+import numpy as np
 import matplotlib.pyplot as plt
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from ..Schemas import schemas
 import os
 
@@ -41,24 +42,49 @@ def generate_chart(ticker: str, window: str):
 
 def generate_signal(ticker: str):
     stock = yf.Ticker(ticker)
-    data = stock.history(period = "1y")
-    # Calculating short SMA
-    data["SMA_short"] = data["Close"].rolling(window = 10).mean()
-    # Calcultaing long SMA
-    data["SMA_long"] = data["Close"].rolling(window = 50).mean()
+    data = stock.history(period="1y")
 
-    sns.lineplot(data = data, x = data.index, y = "SMA_short", label = "7-Day SMA", color = "blue")
-    sns.lineplot(data = data, x = data.index, y = "SMA_long", label = "50-Day SMA", color = "orange")
+    # Calculate Short & Long SMAs
+    data["SMA_short"] = data["Close"].rolling(window=10).mean()
+    data["SMA_long"] = data["Close"].rolling(window=50).mean()
 
-    # Filling the color between two lines indicating the dominance of the line
-    plt.fill_between(data.index, data["SMA_short"], data["SMA_long"], where = (data["SMA_short"] > data["SMA_long"]), color = "green", alpha = 0.3, label = "Above long SMA: BUY SIGNAL")
+    data["Signal"] = np.where(
+        (data["SMA_short"].shift(2) < data["SMA_long"].shift(2)) 
+        & ((data["SMA_short"].shift(1) > data["SMA_long"].shift(1)) 
+        & (data["SMA_short"].shift(2) > data["SMA_long"].shift(2))),
+        "BUY",
+        np.where(
+            (data["SMA_short"].shift(1) > data["SMA_long"].shift(1)) & (data["SMA_short"] < data["SMA_long"]),
+            "SELL",
+            "HOLD"
+        )
+    )
 
-    plt.fill_between(data.index, data["SMA_short"], data["SMA_long"], where = (data["SMA_short"] < data["SMA_long"]), color = "red", alpha = 0.3, label = "Below long SMA: SELL SIGNAL")
+    last_signal = data["Signal"].iloc[-1]
+    plt.figure(figsize=(12, 6))
+    sns.lineplot(data=data, x=data.index, y="Close", label="Stock Price", color="black")
+    sns.lineplot(data=data, x=data.index, y="SMA_short", label="10-Day SMA", color="blue")
+    sns.lineplot(data=data, x=data.index, y="SMA_long", label="50-Day SMA", color="orange")
 
-    plt.title(f"{ticker} Stock Price with short and long SMA")
+    plt.fill_between(data.index, data["SMA_short"], data["SMA_long"], 
+                     where=(data["SMA_short"] > data["SMA_long"]), color="green", alpha=0.3, label="BUY Zone")
+    
+    plt.fill_between(data.index, data["SMA_short"], data["SMA_long"], 
+                     where=(data["SMA_short"] < data["SMA_long"]), color="red", alpha=0.3, label="SELL Zone")
+    plt.text(
+        0.95, 0.95, f"Last Signal: {last_signal}", 
+        horizontalalignment='right', verticalalignment='top', 
+        transform=plt.gca().transAxes,
+        fontsize=12, color="purple", fontweight='bold', bbox=dict(facecolor="white", edgecolor="purple", boxstyle="round,pad=0.3")
+    )
+
+    # Title, Labels, and Legend
+    plt.title(f"{ticker} Stock Price with SMA Strategy")
     plt.xlabel("Date")
     plt.ylabel("Price")
     plt.legend()
+    
+    # Save Chart
     file_path = f"{STATIC_DIR}/{ticker}_chart.png"
     plt.savefig(file_path)
     plt.close()
