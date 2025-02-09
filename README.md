@@ -6,7 +6,7 @@ This is **My First FastAPI-based project** that provides various endpoints for a
 
 ## Live Demo
 
-- Check out the live version of the API at: (Live API)[https://fastapi-stock-analysis.onrender.com/docs#/]
+- Check out the live version of the API at: [Live API][https://fastapi-stock-analysis.onrender.com/docs#/]
 
 ## Features
 
