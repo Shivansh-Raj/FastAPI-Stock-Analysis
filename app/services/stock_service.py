@@ -40,13 +40,13 @@ def generate_chart(ticker: str, window: str):
     return FileResponse(file_path)
 
 
-def generate_signal(ticker: str):
+def generate_signal(ticker: str, short_window: int = 10, long_window: int = 50):
     stock = yf.Ticker(ticker)
     data = stock.history(period="1y")
 
     # Calculate Short & Long SMAs
-    data["SMA_short"] = data["Close"].rolling(window=10).mean()
-    data["SMA_long"] = data["Close"].rolling(window=50).mean()
+    data["SMA_short"] = data["Close"].rolling(window=short_window).mean()
+    data["SMA_long"] = data["Close"].rolling(window=long_window).mean()
 
     data["Signal"] = np.where(
         (data["SMA_short"].shift(2) < data["SMA_long"].shift(2)) 
@@ -63,8 +63,8 @@ def generate_signal(ticker: str):
     last_signal = data["Signal"].iloc[-1]
     plt.figure(figsize=(12, 6))
     sns.lineplot(data=data, x=data.index, y="Close", label="Stock Price", color="black")
-    sns.lineplot(data=data, x=data.index, y="SMA_short", label="10-Day SMA", color="blue")
-    sns.lineplot(data=data, x=data.index, y="SMA_long", label="50-Day SMA", color="orange")
+    sns.lineplot(data=data, x=data.index, y="SMA_short", label=f"{short_window}-Day SMA", color="blue")
+    sns.lineplot(data=data, x=data.index, y="SMA_long", label=f"{long_window}-Day SMA", color="orange")
 
     plt.fill_between(data.index, data["SMA_short"], data["SMA_long"], 
                      where=(data["SMA_short"] > data["SMA_long"]), color="green", alpha=0.3, label="BUY Zone")
@@ -92,13 +92,13 @@ def generate_signal(ticker: str):
     return FileResponse(file_path)
 
 
-def backtest_strategy(ticker: str, initial_balance: int = 10000, traling_on: bool = False):
+def backtest_strategy(ticker: str, initial_balance: int = 10000, traling_on: bool = False, short_window: int = 10, long_window: int = 50):
     stock = yf.Ticker(ticker)
     data = stock.history(period="1y")
 
     # Calculating short and long SMAs
-    data["SMA_short"] = data["Close"].rolling(window=10).mean()
-    data["SMA_long"] = data["Close"].rolling(window=50).mean()
+    data["SMA_short"] = data["Close"].rolling(window=short_window).mean()
+    data["SMA_long"] = data["Close"].rolling(window=long_window).mean()
 
     balance = initial_balance
     position = 0
@@ -126,7 +126,7 @@ def backtest_strategy(ticker: str, initial_balance: int = 10000, traling_on: boo
         # Holding a position -> Check for SL/Target updates
         elif position > 0:
             if current_price <= stop_loss:
-                balance = position * current_price  
+                balance = position * stop_loss
                 trade_log.append(f"SELL at {current_price:.2f} (Stop Loss) on {data.index[i].date()}")
                 position = 0
                 last_balance = balance
